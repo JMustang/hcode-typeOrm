@@ -1,11 +1,9 @@
-import { PrismaService } from './../prisma/prisma.service';
 import {
   BadGatewayException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
 import { UserService } from 'src/user/user.service';
 import { AuthRegisterEntity } from './entities/auth-register.entity';
 import * as bcrypt from 'bcrypt';
@@ -17,7 +15,6 @@ export class AuthService {
   private audience = 'users';
   constructor(
     private readonly jwtService: JwtService,
-    private readonly prisma: PrismaService,
     private readonly userService: UserService,
     private readonly mailer: MailerService,
   ) {}
