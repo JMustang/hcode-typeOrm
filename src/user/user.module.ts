@@ -1,5 +1,4 @@
 import { UserIdCheckMiddleware } from './../middlewares/user-id-check.middleware';
-import { PrismaModule } from './../prisma/prisma.module';
 import { UserController } from './user.controller';
 import {
   MiddlewareConsumer,
@@ -10,9 +9,14 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthModule } from 'src/auth/auth.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserEntity } from './entity/user.entity';
 
 @Module({
-  imports: [PrismaModule, forwardRef(() => AuthModule)],
+  imports: [
+    forwardRef(() => AuthModule),
+    TypeOrmModule.forFeature([UserEntity]),
+  ],
   controllers: [UserController],
   providers: [UserService],
   exports: [UserService],
