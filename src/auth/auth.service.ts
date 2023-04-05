@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -8,6 +9,9 @@ import { UserService } from 'src/user/user.service';
 import { AuthRegisterEntity } from './entities/auth-register.entity';
 import * as bcrypt from 'bcrypt';
 import { MailerService } from '@nestjs-modules/mailer/dist';
+import { UserEntity } from 'src/user/entity/user.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class AuthService {
@@ -17,9 +21,12 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly mailer: MailerService,
+
+    @InjectRepository(UserEntity)
+    private usersRepository: Repository<UserEntity>,
   ) {}
 
-  crateToken(user: User) {
+  crateToken(user: UserEntity) {
     return {
       accessToken: this.jwtService.sign(
         {
@@ -32,6 +39,7 @@ export class AuthService {
           subject: String(user.id),
           issuer: this.issuer,
           audience: this.audience,
+          // secret: String(process.env.JWT_SECRET),
         },
       ),
     };
@@ -59,10 +67,8 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
+    const user = await this.usersRepository.findOneBy({
+      email,
     });
 
     if (!user) {
@@ -70,7 +76,7 @@ export class AuthService {
         message: `Email or password is incorrect.`,
       });
     }
-    if (!bcrypt.compare(password, user.password)) {
+    if (!(await bcrypt.compare(password, user.password))) {
       throw new UnauthorizedException({
         message: `Email or password is incorrect.`,
       });
@@ -79,10 +85,8 @@ export class AuthService {
     return this.crateToken(user);
   }
   async forget(email: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
+    const user = await this.usersRepository.findOneBy({
+      email,
     });
 
     if (!user) {
@@ -101,19 +105,45 @@ export class AuthService {
     });
     return true;
   }
+
   async reset(password: string, token: string) {
     // TODO: Validations token
-    const id = 0;
+    //   const id = 0;
 
-    const user = await this.prisma.user.update({
-      where: {
-        id,
-      },
-      data: {
+    //   const user = await this.prisma.user.update({
+    //     where: {
+    //       id,
+    //     },
+    //     data: {
+    //       password,
+    //     },
+    //   });
+    //   return this.crateToken(user);
+    // }
+
+    try {
+      const data: any = this.jwtService.verify(token, {
+        issuer: 'forget',
+        audience: 'users',
+      });
+
+      if (isNaN(Number(data.id))) {
+        throw new BadRequestException('Invalid token');
+      }
+
+      const salt = await bcrypt.genSalt();
+      password = await bcrypt.hash(password, salt);
+
+      await this.usersRepository.update(Number(data.id), {
         password,
-      },
-    });
-    return this.crateToken(user);
+      });
+
+      const user = await this.userService.readOne(Number(data.id));
+
+      return this.crateToken(user);
+    } catch (e) {
+      throw new BadRequestException(e);
+    }
   }
 
   async register(data: AuthRegisterEntity) {
